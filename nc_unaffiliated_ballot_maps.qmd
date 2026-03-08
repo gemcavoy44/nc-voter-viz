@@ -1,0 +1,432 @@
+---
+title:  "NC 2026 Primary:<br>Unaffiliated Voter Ballot Choice by County"
+subtitle: "Which party ballot did unaffiliated voters choose?"
+date: today
+format:
+  html:
+    theme: flatly
+    toc: true
+    embed-resources: true
+    fig-align: center
+    include-in-header:
+      - text: |
+          <style>
+          .quarto-title-block .quarto-title {
+            text-align: center;
+          }
+          .quarto-title-block .quarto-title .title,
+          .quarto-title-block .quarto-title .subtitle,
+          .quarto-title-block .quarto-title .quarto-categories {
+            text-align: center;
+          }
+          #title-block-header.quarto-title-block {
+            text-align: center;
+          }
+          </style>
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(tidyverse)
+library(sf)
+library(tigris)
+library(scales)
+library(stringr)
+
+options(tigris_use_cache = TRUE)
+```
+
+## Data
+
+```{r load-data}
+# Adjust the object name or file path to match your setup
+# absentee <- read_tsv("absentee_20260303.csv")
+absentee <- read.csv("~/Downloads/absentee_20260303 2.csv")
+```
+
+```{r wrangle}
+una_ballots <- absentee %>%
+  filter(
+    voter_party_code == "UNA",
+    ballot_rtn_status == "ACCEPTED",
+    ballot_request_party %in% c("DEM", "REP")
+  ) %>%
+  count(county_desc, ballot_request_party, name = "n") %>%
+  pivot_wider(
+    names_from  = ballot_request_party,
+    values_from = n,
+    values_fill = 0
+  ) %>%
+  mutate(
+    total   = DEM + REP,
+    pct_dem = DEM / total * 100,
+    pct_rep = REP / total * 100,
+    margin  = pct_dem - pct_rep,
+    county_upper = toupper(trimws(county_desc))
+  )
+
+total_una   <- sum(una_ballots$total)
+total_dem   <- sum(una_ballots$DEM)
+total_rep   <- sum(una_ballots$REP)
+pct_dem_all <- total_dem / total_una * 100
+pct_rep_all <- total_rep / total_una * 100
+```
+
+In the March 3, 2026 primary, **`r comma(total_una)`** unaffiliated voters cast either a Democratic or Republican ballot. Statewide, **`r sprintf("%.1f%%", pct_dem_all)`** chose the Democratic ballot and **`r sprintf("%.1f%%", pct_rep_all)`** chose the Republican ballot.
+
+```{r shapefile}
+nc_counties <- counties(state = "NC", cb = TRUE, year = 2022) %>%
+  mutate(county_upper = toupper(NAME))
+
+nc_map <- nc_counties %>%
+  left_join(una_ballots, by = "county_upper")
+```
+
+```{r theme}
+theme_nc_map <- function() {
+  theme_void(base_family = "Helvetica") +
+    theme(
+      plot.background   = element_rect(fill = "white", color = NA),
+      panel.background  = element_rect(fill = "white", color = NA),
+      plot.title        = element_text(color = "#1a1a1a", size = 16, face = "bold",
+                                       hjust = 0.5, margin = margin(t = 10, b = 4)),
+      plot.subtitle     = element_text(color = "#555555", size = 10, hjust = 0.5,
+                                       margin = margin(b = 12)),
+      plot.caption      = element_text(color = "#888888", size = 7, hjust = 0.5,
+                                       margin = margin(t = 10)),
+      legend.position   = "bottom",
+      legend.title      = element_text(color = "#333333", size = 9),
+      legend.text       = element_text(color = "#555555", size = 8),
+      legend.key.width  = unit(2, "cm"),
+      legend.key.height = unit(0.3, "cm"),
+      plot.margin       = margin(10, 15, 10, 15)
+    )
+}
+```
+
+## Percent Choosing the Democratic Ballot
+
+```{r map-dem}
+#| fig-width: 10
+#| fig-height: 6
+
+ggplot(nc_map) +
+  geom_sf(aes(fill = pct_dem), color = "white", linewidth = 0.25) +
+  scale_fill_gradient(
+    low      = "#deebf7",
+    high     = "#084594",
+    na.value = "#e8e8e8",
+    name     = "% Chose DEM Ballot",
+    labels   = function(x) paste0(round(x), "%"),
+    guide    = guide_colorbar(title.position = "top", title.hjust = 0.5)
+  ) +
+  labs(
+    title   = "Unaffiliated Voters Choosing the Democratic Ballot",
+    subtitle = "NC 2026 Primary Election — by County",
+    caption = "Source: NC State Board of Elections absentee data (March 3, 2026 primary)"
+  ) +
+  theme_nc_map()
+```
+
+## Percent Choosing the Republican Ballot
+
+```{r map-rep}
+#| fig-width: 10
+#| fig-height: 6
+
+ggplot(nc_map) +
+  geom_sf(aes(fill = pct_rep), color = "white", linewidth = 0.25) +
+  scale_fill_gradient(
+    low      = "#fee0d2",
+    high     = "#a50f15",
+    na.value = "#e8e8e8",
+    name     = "% Chose REP Ballot",
+    labels   = function(x) paste0(round(x), "%"),
+    guide    = guide_colorbar(title.position = "top", title.hjust = 0.5)
+  ) +
+  labs(
+    title    = "Unaffiliated Voters Choosing the Republican Ballot",
+    subtitle = "NC 2026 Primary Election — by County",
+    caption  = "Source: NC State Board of Elections absentee data (March 3, 2026 primary)"
+  ) +
+  theme_nc_map()
+```
+
+## Democratic vs Republican Margin
+
+```{r map-margin}
+#| fig-width: 10
+#| fig-height: 6
+
+max_abs_margin <- max(abs(nc_map$margin), na.rm = TRUE)
+margin_limit   <- ceiling(max_abs_margin / 10) * 10
+
+ggplot(nc_map) +
+  geom_sf(aes(fill = margin), color = "white", linewidth = 0.25) +
+  scale_fill_gradient2(
+    low      = "#b2182b",
+    mid      = "#f7f7f7",
+    high     = "#2166ac",
+    midpoint = 0,
+    limits   = c(-margin_limit, margin_limit),
+    na.value = "#e8e8e8",
+    name     = "DEM ← Margin → REP",
+    labels   = function(x) {
+      ifelse(x > 0, paste0("D+", abs(round(x))),
+             ifelse(x < 0, paste0("R+", abs(round(x))), "Even"))
+    },
+    guide = guide_colorbar(title.position = "top", title.hjust = 0.5, reverse = TRUE)
+  ) +
+  labs(
+    title    = "Which Party Won Unaffiliated Voters?",
+    subtitle = "NC 2026 Primary — DEM vs REP ballot margin among UNA voters, by County",
+    caption  = "Source: NC State Board of Elections absentee data (March 3, 2026 primary)"
+  ) +
+  theme_nc_map()
+```
+
+
+::: {style="text-align: center;"}
+## Counties with the Highest Percent Choosing <br> the Democratic Ballot
+:::
+```{r table-dem}
+una_ballots %>%
+  arrange(desc(pct_dem)) %>%
+  head(10) %>%
+  transmute(
+    County       = county_desc,
+    `UNA Voters` = comma(total),
+    `DEM %`      = sprintf("%.1f%%", pct_dem),
+    `REP %`      = sprintf("%.1f%%", pct_rep)
+  ) %>%
+  knitr::kable(align = "lrrr")
+```
+
+::: {style="text-align: center;"}
+## Counties with the Highest Percent Choosing <br> the Republican Ballot
+:::
+```{r table-rep}
+una_ballots %>%
+  arrange(desc(pct_rep)) %>%
+  head(10) %>%
+  transmute(
+    County       = county_desc,
+    `UNA Voters` = comma(total),
+    `DEM %`      = sprintf("%.1f%%", pct_dem),
+    `REP %`      = sprintf("%.1f%%", pct_rep)
+  ) %>%
+  knitr::kable(align = "lrrr")
+```
+
+---
+
+::: {style="text-align: center;"}
+## Do Unaffiliated Voters Vote Like Their County?
+:::
+
+To test whether unaffiliated voters' ballot choices track the partisan lean of their county, we merge the 2026 primary ballot data with the 2024 presidential two-party vote share by county.
+
+```{r trump-data}
+#| cache: true
+
+# --- Download and parse 2024 presidential results by county -----------------
+# (This downloads precinct-sort files from NCSBE for all 100 counties;
+#  it takes a few minutes on the first run but is cached afterward.)
+
+library(data.table)
+library(purrr)
+library(janitor)
+
+nc_county_list <- tigris::fips_codes %>%
+  filter(state == "NC") %>%
+  transmute(
+    county_name  = str_remove(county, "\\s+County$"),
+    county_upper = str_replace_all(str_to_upper(county_name), " ", "_")
+  ) %>%
+  distinct()
+
+read_precinct_sort <- function(county_upper,
+                               date_dir = "2024_11_05",
+                               base = "https://s3.amazonaws.com/dl.ncsbe.gov/ENRS",
+                               retries = 3, sleep_sec = 1) {
+  url_plain  <- sprintf("%s/%s/results_precinct_sort/%s_PRECINCT_SORT.txt",
+                        base, date_dir, county_upper)
+  url_county <- sprintf("%s/%s/results_precinct_sort/%s_COUNTY_PRECINCT_SORT.txt",
+                        base, date_dir, county_upper)
+  try_download <- function(url) {
+    tmp <- tempfile(fileext = ".txt")
+    ok <- FALSE
+    for (i in seq_len(retries)) {
+      try({ utils::download.file(url, tmp, mode = "wb", quiet = TRUE)
+            ok <- file.exists(tmp) && file.size(tmp) > 0 }, silent = TRUE)
+      if (ok) break; Sys.sleep(sleep_sec)
+    }
+    if (!ok) return(NULL); tmp
+  }
+  f <- try_download(url_plain)
+  if (is.null(f)) f <- try_download(url_county)
+  if (is.null(f)) stop("Download failed for: ", county_upper)
+  dt <- try(fread(f, encoding = "UTF-8", showProgress = FALSE), silent = TRUE)
+  if (inherits(dt, "try-error")) dt <- fread(f, encoding = "Latin-1", showProgress = FALSE)
+  janitor::clean_names(dt)
+}
+
+to_two_party_county <- function(dt_one) {
+  dt_one %>%
+    mutate(
+      result_type_lbl     = as.character(result_type_lbl),
+      candidate_party_lbl = as.character(candidate_party_lbl),
+      contest_title       = as.character(contest_title),
+      county              = as.character(county)
+    ) %>%
+    filter(result_type_lbl %in% c("STD", "Standard", "STANDARD"),
+           contest_title == "US PRESIDENT") %>%
+    mutate(prty = case_when(
+      candidate_party_lbl %in% c("DEM", "Democratic") ~ "DEM",
+      candidate_party_lbl %in% c("REP", "Republican") ~ "REP",
+      TRUE ~ NA_character_
+    )) %>%
+    filter(!is.na(prty)) %>%
+    group_by(county, prty) %>%
+    summarize(votes = sum(vote_ct, na.rm = TRUE), .groups = "drop_last") %>%
+    pivot_wider(names_from = prty, values_from = votes, values_fill = 0L) %>%
+    ungroup() %>%
+    transmute(
+      county_upper    = str_replace_all(str_to_upper(county), " ", "_"),
+      dem_votes       = as.numeric(DEM),
+      rep_votes       = as.numeric(REP),
+      total_two_party = dem_votes + rep_votes,
+      trump_pct       = if_else(total_two_party > 0, 100 * rep_votes / total_two_party, NA_real_)
+    )
+}
+
+county_pres <- nc_county_list$county_upper %>%
+  set_names(nc_county_list$county_upper) %>%
+  map(read_precinct_sort) %>%
+  map(to_two_party_county) %>%
+  bind_rows() %>%
+  group_by(county_upper) %>%
+  summarize(
+    dem_votes       = sum(dem_votes, na.rm = TRUE),
+    rep_votes       = sum(rep_votes, na.rm = TRUE),
+    total_two_party = sum(total_two_party, na.rm = TRUE),
+    trump_pct       = 100 * rep_votes / total_two_party,
+    .groups = "drop"
+  ) %>%
+  filter(is.finite(trump_pct), total_two_party > 0)
+```
+
+```{r merge-data}
+# Merge: una_ballots uses spaces in county_upper, county_pres uses underscores
+scatter_df <- una_ballots %>%
+  mutate(county_join = str_replace_all(county_upper, " ", "_")) %>%
+  inner_join(county_pres, by = c("county_join" = "county_upper")) %>%
+  mutate(harris_pct = 100 - trump_pct)
+
+r_dem   <- cor(scatter_df$trump_pct, scatter_df$pct_dem, use = "complete.obs")
+r_rep   <- cor(scatter_df$trump_pct, scatter_df$pct_rep, use = "complete.obs")
+r2_dem  <- r_dem^2
+r2_rep  <- r_rep^2
+```
+
+```{r scatter-theme}
+theme_scatter <- function() {
+  theme_minimal(base_family = "Helvetica", base_size = 12) +
+    theme(
+      plot.title    = element_text(face = "bold", hjust = 0.5, size = 14),
+      plot.subtitle = element_text(color = "#555555", hjust = 0.5, size = 10),
+      plot.caption  = element_text(color = "#888888", size = 7, hjust = 0.5),
+      panel.grid.minor = element_blank()
+    )
+}
+```
+
+### Trump Vote Share vs. % Unaffiliated Choosing the Democratic Ballot
+
+```{r scatter-dem}
+#| fig-width: 8
+#| fig-height: 6
+
+ggplot(scatter_df, aes(x = trump_pct, y = pct_dem)) +
+  geom_point(aes(size = total), alpha = 0.5, color = "#2166ac") +
+  geom_smooth(method = "lm", se = TRUE, color = "#084594", linewidth = 0.8) +
+  scale_size_continuous(range = c(1, 10), labels = comma, name = "UNA Voters") +
+  scale_x_continuous(labels = function(x) paste0(x, "%")) +
+  scale_y_continuous(labels = function(x) paste0(x, "%")) +
+  annotate("text", x = max(scatter_df$trump_pct, na.rm = TRUE) - 2,
+           y = max(scatter_df$pct_dem, na.rm = TRUE) - 2,
+           label = sprintf("R² = %.3f", r2_dem),
+           hjust = 1, size = 4, fontface = "italic", color = "#333333") +
+  labs(
+    title    = "County Trump Vote vs. Unaffiliated DEM Ballot Choice",
+    subtitle = "Each point is one NC county; size = number of UNA voters who cast a ballot",
+    x        = "Trump Two-Party Vote Share, 2024 (%)",
+    y        = "% of Unaffiliated Voters Choosing DEM Ballot, 2026 Primary",
+    caption  = "Sources: NCSBE 2024 precinct-sort results; NCSBE 2026 primary absentee data"
+  ) +
+  theme_scatter()
+```
+
+In counties where Trump ran strongest, unaffiliated voters overwhelmingly chose the Republican primary ballot. The relationship is strongly negative (R² = `r sprintf("%.3f", r2_dem)`).
+
+### Trump Vote Share vs. % Unaffiliated Choosing the Republican Ballot
+
+```{r scatter-rep}
+#| fig-width: 8
+#| fig-height: 6
+
+ggplot(scatter_df, aes(x = trump_pct, y = pct_rep)) +
+  geom_point(aes(size = total), alpha = 0.5, color = "#b2182b") +
+  geom_smooth(method = "lm", se = TRUE, color = "#a50f15", linewidth = 0.8) +
+  scale_size_continuous(range = c(1, 10), labels = comma, name = "UNA Voters") +
+  scale_x_continuous(labels = function(x) paste0(x, "%")) +
+  scale_y_continuous(labels = function(x) paste0(x, "%")) +
+  annotate("text", x = max(scatter_df$trump_pct, na.rm = TRUE) - 2,
+           y = min(scatter_df$pct_rep, na.rm = TRUE) + 2,
+           label = sprintf("R² = %.3f", r2_rep),
+           hjust = 1, size = 4, fontface = "italic", color = "#333333") +
+  labs(
+    title    = "County Trump Vote vs. Unaffiliated REP Ballot Choice",
+    subtitle = "Each point is one NC county; size = number of UNA voters who cast a ballot",
+    x        = "Trump Two-Party Vote Share, 2024 (%)",
+    y        = "% of Unaffiliated Voters Choosing REP Ballot, 2026 Primary",
+    caption  = "Sources: NCSBE 2024 precinct-sort results; NCSBE 2026 primary absentee data"
+  ) +
+  theme_scatter()
+```
+
+The mirror image: unaffiliated voters in Trump-heavy counties chose the Republican ballot at very high rates (R² = `r sprintf("%.3f", r2_rep)`). The two R² values are identical because % DEM and % REP are complements — but seeing both plots drives the point home.
+
+### Combined View: UNA Ballot Margin vs. County Partisan Lean
+
+```{r scatter-margin}
+#| fig-width: 8
+#| fig-height: 6
+
+ggplot(scatter_df, aes(x = trump_pct - 50, y = margin)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey60") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey60") +
+  geom_point(aes(size = total, color = margin), alpha = 0.6, show.legend = FALSE) +
+  geom_smooth(method = "lm", se = TRUE, color = "#333333", linewidth = 0.8) +
+  scale_color_gradient2(low = "#b2182b", mid = "#f7f7f7", high = "#2166ac", midpoint = 0) +
+  scale_size_continuous(range = c(1, 10)) +
+  scale_x_continuous(labels = function(x) {
+    ifelse(x > 0, paste0("R+", x), ifelse(x < 0, paste0("D+", abs(x)), "Even"))
+  }) +
+  scale_y_continuous(labels = function(x) {
+    ifelse(x > 0, paste0("D+", round(x)), ifelse(x < 0, paste0("R+", abs(round(x))), "Even"))
+  }) +
+  labs(
+    title    = "County Partisan Lean vs. UNA Ballot Margin",
+    subtitle = "Counties that lean Republican in general elections also see their UNA voters pick the GOP ballot",
+    x        = "County Partisan Lean (Trump margin, 2024)",
+    y        = "UNA Ballot Margin (DEM% − REP%), 2026 Primary",
+    caption  = "Sources: NCSBE 2024 precinct-sort results; NCSBE 2026 primary absentee data"
+  ) +
+  theme_scatter()
+```
+
+This plot expresses the same relationship on a margin-vs-margin scale: counties in the lower-right (Republican-leaning counties where UNA voters picked Republican ballots) and upper-left (Democratic counties where UNA voters picked Democratic ballots) confirm that unaffiliated voters broadly mirror their county's partisan lean.
