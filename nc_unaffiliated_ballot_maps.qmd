@@ -190,10 +190,10 @@ ggplot(nc_map) +
   theme_nc_map()
 ```
 
-
 ::: {style="text-align: center;"}
 ## Counties with the Highest Percent Choosing <br> the Democratic Ballot
 :::
+
 ```{r table-dem}
 una_ballots %>%
   arrange(desc(pct_dem)) %>%
@@ -210,6 +210,7 @@ una_ballots %>%
 ::: {style="text-align: center;"}
 ## Counties with the Highest Percent Choosing <br> the Republican Ballot
 :::
+
 ```{r table-rep}
 una_ballots %>%
   arrange(desc(pct_rep)) %>%
@@ -223,10 +224,10 @@ una_ballots %>%
   knitr::kable(align = "lrrr")
 ```
 
----
+------------------------------------------------------------------------
 
 ::: {style="text-align: center;"}
-## Do Unaffiliated Voters Vote Like Their County?
+## Do Unaffiliated Voters Align With Their County?
 :::
 
 To test whether unaffiliated voters' ballot choices track the partisan lean of their county, I merge the 2026 primary ballot data with the 2024 presidential two-party vote share by county.
