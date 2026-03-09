@@ -75,6 +75,8 @@ pct_dem_all <- total_dem / total_una * 100
 pct_rep_all <- total_rep / total_una * 100
 ```
 
+The number of unaffiliated voters in North Carolina has been steadily growing, raising the question of how likely these voters are to disrupt voting patterns and electoral outcomes in the state. Because North Carolina has semi-open primaries, unaffiliated voters can choose which primary they want to vote in by requesting either the Democratic or Republican ballot. While some voters may make strategic choices — for example, an unaffiliated voter who leans Democratic picking the Republican ballot to support the candidate least likely to win the general election — this number is likely small. Examining ballot choice in primaries is therefore a useful starting point for understanding the inclinations of unaffiliated voters. Here, I provide a first cut by looking at whether ballot choice is related to the partisan leaning of NC counties.
+
 In the March 3, 2026 primary, **`r comma(total_una)`** unaffiliated voters cast either a Democratic or Republican ballot. Statewide, **`r sprintf("%.1f%%", pct_dem_all)`** chose the Democratic ballot and **`r sprintf("%.1f%%", pct_rep_all)`** chose the Republican ballot.
 
 ```{r shapefile}
@@ -227,7 +229,7 @@ una_ballots %>%
 ## Do Unaffiliated Voters Vote Like Their County?
 :::
 
-To test whether unaffiliated voters' ballot choices track the partisan lean of their county, we merge the 2026 primary ballot data with the 2024 presidential two-party vote share by county.
+To test whether unaffiliated voters' ballot choices track the partisan lean of their county, I merge the 2026 primary ballot data with the 2024 presidential two-party vote share by county.
 
 ```{r trump-data}
 #| cache: true
@@ -370,7 +372,7 @@ ggplot(scatter_df, aes(x = trump_pct, y = pct_dem)) +
   theme_scatter()
 ```
 
-In counties where Trump ran strongest, unaffiliated voters overwhelmingly chose the Republican primary ballot. The relationship is strongly negative (R² = `r sprintf("%.3f", r2_dem)`).
+In counties where Trump ran strongest, unaffiliated voters overwhelmingly chose the Republican primary ballot. The relationship is strongly negative (R = -.80).
 
 ### Trump Vote Share vs. % Unaffiliated Choosing the Republican Ballot
 
@@ -398,7 +400,7 @@ ggplot(scatter_df, aes(x = trump_pct, y = pct_rep)) +
   theme_scatter()
 ```
 
-The mirror image: unaffiliated voters in Trump-heavy counties chose the Republican ballot at very high rates (R² = `r sprintf("%.3f", r2_rep)`). The two R² values are identical because % DEM and % REP are complements — but seeing both plots drives the point home.
+The mirror image: unaffiliated voters in Trump-heavy counties chose the Republican ballot at very high rates (R=.80). (The two R values are identical because % DEM and % REP are complements).
 
 ### Combined View: UNA Ballot Margin vs. County Partisan Lean
 
@@ -429,4 +431,4 @@ ggplot(scatter_df, aes(x = trump_pct - 50, y = margin)) +
   theme_scatter()
 ```
 
-This plot expresses the same relationship on a margin-vs-margin scale: counties in the lower-right (Republican-leaning counties where UNA voters picked Republican ballots) and upper-left (Democratic counties where UNA voters picked Democratic ballots) confirm that unaffiliated voters broadly mirror their county's partisan lean.
+This plot shows the same relationship on a margin-vs-margin scale: counties in the lower-right (Republican-leaning counties where UNA voters picked Republican ballots) and upper-left (Democratic counties where UNA voters picked Democratic ballots) confirm that unaffiliated voters broadly follow their county's partisan lean.
